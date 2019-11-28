@@ -1,8 +1,6 @@
 package edu.pqs19.connect_n.mll469;
 
-import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Objects;
 
@@ -11,17 +9,23 @@ public class CNPlayerView implements CNListener {
 	private List<String> pub_logs;
 	private List<String> priv_logs;
 	private boolean voteYes;
-	private secret;
+	private String secret;
+	private String gameKey;
 	
 	CNModel game;
 	
 	public CNPlayerView(CNModel game) {
 		Objects.requireNonNull(game);
 		this.game = game;
+		this.gameKey = this.game.getKey();
 		int res = subscribeToGame(this.game);
 		if (res == 1) { this.addToPrivLogs("Successfully subscribed to game."); } 
 		
-		this.secret = this.generateSecret();
+		try {
+			this.secret = SecurityLayer.generateSecret();
+		} catch (NoSuchAlgorithmException e) {
+			e.printStackTrace();
+		}
 	}
 	
 	private int subscribeToGame(CNModel game) {
@@ -29,7 +33,7 @@ public class CNPlayerView implements CNListener {
 		this.game = game;
 		this.pub_logs = this.game.getGameHistory();
 		this.priv_logs = this.game.getGameHistory();
-		return game.addListener(this);
+		return game.addListener(this, this.secret);
 	}
 	
 	public void addTrustedSender(String hash) {
@@ -57,6 +61,11 @@ public class CNPlayerView implements CNListener {
 		pub_logs.add(s);
 		priv_logs.add(s);
 	}
+	
+	private boolean senderIsGame(String key) {
+
+		return false;
+	}
 
 
 	// --------------------------------------------------------
@@ -70,16 +79,18 @@ public class CNPlayerView implements CNListener {
 		}
 	}
 	
-	public void notifiedGameEnded() {
+	public void notifiedGameMayHaveEnded() {
 		String log_string = "Game ended!";
 		if (!game.isGameEnded()) { // Confirm that the game is the one that sent this message. 
 			this.addToPubLogs(log_string);
 		}
 	}
 	
-	public void notifiedMoveMade(String move) {
-		if (game.isGameStarted()) { // Confirm that the game is the one that sent this message. 
+	public void notifiedMoveMade(List<Object> grid, String move, String key) {
+		if (this.senderIsGame(key)) { // Confirm that the game is the one that sent this message. 
 			this.addToPrivLogs(move);
 		}
 	}
+	
+	
 }

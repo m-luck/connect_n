@@ -1,6 +1,5 @@
 package edu.pqs19.connect_n.mll469;
 
-import java.security.MessageDigest;
 import java.util.Objects;  
 
 public class CNPiece {

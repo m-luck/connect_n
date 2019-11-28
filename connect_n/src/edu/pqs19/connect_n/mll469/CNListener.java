@@ -4,7 +4,7 @@ import java.util.List;
 
 public interface CNListener {
 	public void notifiedGameMayHaveStarted();
-	public void notifiedGameEnded();
-	public void notifiedMoveMade(String s);
+	public void notifiedGameMayHaveEnded();
+	public void notifiedMoveMade(List<Object> grid, String move, String s);
 	public List<String> getPublicLogs();
 }

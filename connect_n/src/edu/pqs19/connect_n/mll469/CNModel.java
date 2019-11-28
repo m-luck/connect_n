@@ -1,37 +1,57 @@
 package edu.pqs19.connect_n.mll469;
 
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 
 public class CNModel {
+	
+	// Grid
 
 	private List<Object> gameGrid; // N dimensional matrix.
 	private int gridDimensionCount; // e.g. 2 for 2D
 	private List<Integer> dimensionSizes; // e.g. [7, 6] for a 2D 7 row, 6 column grid
 	
-	private List<CNListener> subscribers; // watching the game
+	
+	// Registered Actors
+	
+	private List<CNListener> subscribers; // watching the game (may be a superset of players)
 	private List<CNPlayerView> players; // affecting the game
+	private List<String> keys; // for usage in notification functions (in which actors vet if sender is trusted)
+	
+	// Flags
 	
 	private boolean gameStarted; 
 	private boolean gameEnded;
 	private boolean allowLateJoining;
+	private boolean allowDiagonalWins;
+	
+	
+	// Limits
 	
 	private int subscriberLimit;
 	private int playerLimit;
 	
 	
+	// Evolving state variables
+	
 	private List<CNPlayerView> turnQueue;
- 	private List<String> internal_logger;
- 	private CNListener public_logger;
+ 	private List<String> internal_logger; 
+ 	private CNListener public_logger; 
+ 	
+ 	
+ 	// Security 
+ 	
+ 	private String key;
 	
 	public CNModel(int dimensions, List<Integer> dimSizes) {
 		
 		Objects.requireNonNull(dimensions);
 		Objects.requireNonNull(dimSizes);
 		
-		if (dimensions > 2 || dimensions < 1) { // Only support 1 or 2 dimensions for now.
+		if (dimensions > 2 || dimensions < 1) { // Only support 1 or 2 dimensions for now, for simplicity.
 			throw new IllegalArgumentException();
 		}
 		
@@ -43,13 +63,19 @@ public class CNModel {
 		this.dimensionSizes = dimSizes;
 		this.gameGrid = this.getFreshGrid();
 		
-		this.subscriberLimit = 2048;
+		this.subscriberLimit = 2048; // Set manageable numbers for default limits.
 		this.playerLimit = 1024;
 		this.gameStarted = false;
 		this.allowLateJoining = false;
+		
+		try { // Generate constant key for message transfer.
+			this.key = SecurityLayer.generateSecret();
+		} catch (NoSuchAlgorithmException e) {
+			e.printStackTrace();
+		}
 	}
 	
-	public CNModel(int dimensions, int dimSizes, int playerLimit) {
+	public CNModel(int dimensions, int dimSizes, int subscriberLimit) {
 		
 		Objects.requireNonNull(dimensions);
 		Objects.requireNonNull(dimSizes);
@@ -64,17 +90,25 @@ public class CNModel {
 		this.turnQueue = new LinkedList<CNPlayerView>();
 		
 		this.gridDimensionCount = dimensions;
-		this.subscriberLimit = playerLimit;
-		this.playerLimit = playerLimit;
+		this.subscriberLimit = subscriberLimit;
+		this.playerLimit = subscriberLimit;
 		
 		this.gameGrid = this.getFreshGrid();
 	}
 	
+	
+	// Setup 
+	
 	public int addListener(CNListener listener, String listenerSecret) {
 		Objects.requireNonNull(listener);
+		Objects.requireNonNull(listenerSecret);
 		if (subscribers.size() < subscriberLimit) {
-			subscribers.add(listener);
-			listener.addTrustedSender(this.secret, listenerSecret);
+			try {
+				keys.add(SecurityLayer.mix(this.key, listenerSecret));
+				subscribers.add(listener);
+			} catch (NoSuchAlgorithmException e) {
+				e.printStackTrace();
+			}
 			return 1;
 		}	
 		return 0; // Failure to add.
@@ -129,8 +163,8 @@ public class CNModel {
 
 		this.gameStarted = true; // Otherwise set the game to start.
 		
-		for (CNListener subscriber : this.subscribers) {
-			subscriber.notifiedGameMayHaveStarted(); // Let all subscribers know.
+		for (int i = 0; i < this.subscribers.size(); i++) {
+			this.subscribers.get(i).notifiedGameMayHaveStarted(); // Let all subscribers know.
 		}
 		
 		return true;
@@ -151,5 +185,9 @@ public class CNModel {
 
 	public List<Object> getGrid() {
 		return this.gameGrid;
+	}
+	
+	public String getKey() {
+		return this.key;
 	}
 }
