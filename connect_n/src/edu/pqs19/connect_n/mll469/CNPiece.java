@@ -4,10 +4,9 @@ import java.util.Objects;
 
 public class CNPiece {
 
-	private int owner;
+	private CNListener owner;
 	
-	CNPiece(int player) {
-		Objects.requireNonNull(player);
+	CNPiece(CNListener player) {
 		this.owner = player;
 	}
 	
@@ -22,6 +21,10 @@ public class CNPiece {
 	
 	public String getColor() {
 		return "nice";
+	}
+	
+	public CNListener getOwner() {
+		return this.owner;
 	}
 }
 

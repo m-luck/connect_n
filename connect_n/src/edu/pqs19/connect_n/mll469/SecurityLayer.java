@@ -25,7 +25,7 @@ public class SecurityLayer {
         byte[] byteHash = md.digest(hash.getBytes(StandardCharsets.UTF_8));  
 	    BigInteger number = new BigInteger(1, byteHash);  
         
-	    // Convert message digest into hex value  g
+	    // Convert message digest into hex value
         
 	    StringBuilder hexString = new StringBuilder(number.toString(16));  
         // Pad with leading zeros 
