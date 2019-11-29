@@ -12,7 +12,8 @@ public class CNPiece {
 	
 	@Override
 	public String toString() {
-		return "[]";
+		if (owner == null) {return "null";}
+		return owner.toString();
 	}
 	
 	public int hashCode() {

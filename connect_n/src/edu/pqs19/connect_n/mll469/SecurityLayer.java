@@ -6,12 +6,13 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Random;
 
 public class SecurityLayer {
 	
 	public static String generateSecret()throws NoSuchAlgorithmException {
 		
-		long value=123L;
+		long value=new Random().nextLong();;
 		String hash = String.format("%016x", value);
 		
 		return  getHexString(hash);

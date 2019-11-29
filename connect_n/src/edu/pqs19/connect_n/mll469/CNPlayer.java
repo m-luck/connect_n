@@ -1,6 +1,7 @@
 package edu.pqs19.connect_n.mll469;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -22,11 +23,13 @@ public class CNPlayer implements CNListener {
 
 	private List<String> pub_logs;
 	private List<String> priv_logs;
-	private boolean voteYes;
+	private boolean voteYes = true;
 	private String secret;
+	private Color color;
 	
 	private JTextArea textArea = new JTextArea();
 	private GridLayout arena; 
+	JPanel midPanel;
 	private JButton button = new JButton("SEND MOVE");
 	private JSpinner num_spin;
 	private SpinnerNumberModel col_field;
@@ -54,8 +57,10 @@ public class CNPlayer implements CNListener {
 		else { this.addToScreen("Could not enter as player."); }
 		
 
-		arena = new GridLayout(game.getRowCount(), game.getColCount());
-		col_field = new SpinnerNumberModel(0, 0, game.getColCount(), 1);
+		arena = new GridLayout(game.getRowCount() + 1, game.getColCount());
+		col_field = new SpinnerNumberModel(0, 0, game.getColCount() - 1, 1);
+		
+		this.color = new Color((int)(Math.random() * 0x1000000)); // Color assignment
 		num_spin = new JSpinner(col_field);
 		
 		JFrame frame = new JFrame();
@@ -71,10 +76,8 @@ public class CNPlayer implements CNListener {
 		topPanel.setLayout(new BorderLayout());
 		topPanel.add(new JScrollPane(textArea), BorderLayout.CENTER);
 		
-		JPanel midPanel = new JPanel();
+		midPanel = new JPanel();
 		midPanel.setLayout(arena);
-		midPanel.add(new JTextArea());
-		
 		
 		panel.add(bottomPanel, BorderLayout.SOUTH);
 		panel.add(midPanel, BorderLayout.CENTER);
@@ -84,20 +87,26 @@ public class CNPlayer implements CNListener {
 		
 		frame.setSize(200,200);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		this.drawGrid(midPanel, game.getGrid(), game.getColCount(), game.getRowCount());
 		frame.setVisible(true);
 
 		button.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent event) {
-				sendMove();
+				sendMove(-1);
 			}
 		});
 
 	}
 	
-	private void sendMove() {
-		int col = this.col_field.getNumber().intValue();
+	private void sendMove(int col) {
+		if (col == -1) {
+			col = this.col_field.getNumber().intValue();
+		}
 		this.addToScreen("Sent move");
-		this.game.sendMove(col, this, this.secret);
+		boolean res = this.game.sendMove(col, this, this.secret);
+		if (res == false) {
+			addToScreen("Not valid. Probably not your turn or space is filled.");
+		}
 	}
 	
 	private void addToScreen(String line) {
@@ -105,18 +114,43 @@ public class CNPlayer implements CNListener {
 			textArea.append(line);
 			textArea.append("\n");
 			this.addToPrivLogs(line);
+			textArea.setCaretPosition(textArea.getDocument().getLength());
 		}
 	}
 
-//	private void drawGrid(ArrayList<ArrayList<CNPiece>> grid, int cols, int rows) {
-//		
-//		arena = new GridLayout(rows,cols);
-//		for (int row = 0; row < rows; row++) { 
-//			for (int col = 0; col < cols; col++) { // Horizontal scan
-//				CNPiece piece = grid.get(col).get(row);
-//			
-//	}
-//	
+	private void drawGrid(JPanel midPanel, ArrayList<ArrayList<CNPiece>> grid, int cols, int rows) {
+		
+		midPanel.removeAll();
+		for (int row = 0; row < rows; row++) { 
+			for (int col = 0; col < cols; col++) { // Horizontal scan
+					CNPiece piece = grid.get(col).get(row);
+					JTextArea text = new JTextArea();
+					Color pieceColor = Color.YELLOW;
+					if (piece.getOwner() != null) {
+						pieceColor = piece.getOwner().getColor();
+					}
+					midPanel.add(text);
+					text.setBackground(pieceColor);
+					text.append("|");
+				}
+		}
+		
+		JButton colbutt;
+		for (int col = 0; col < cols; col++) { // Horizontal scan
+			colbutt = null;
+			colbutt = new JButton(Integer.toString(col));
+			Integer target_col = col;
+			colbutt.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent event) {
+					sendMove(target_col);
+				}
+			});
+			midPanel.add(colbutt);
+			
+		}
+
+	}
+			
 	private int subscribeToGame() {
 		this.pub_logs = this.game.getGameHistory();
 		List<String> gameHistory = this.game.getGameHistory();
@@ -128,7 +162,7 @@ public class CNPlayer implements CNListener {
 	
 	private boolean isTrustedSender(String mix) {
 		try {
-			if (mix == SecurityLayer.mix(this.game.getKey(), this.secret)) {
+			if (SecurityLayer.mix(this.game.getKey(), this.secret).contentEquals(mix)) {
 				return true;
 			}
 		} catch (NoSuchAlgorithmException e) {
@@ -143,6 +177,10 @@ public class CNPlayer implements CNListener {
 	
 	public List<String> getPublicLogs() {
 		return pub_logs;
+	}
+	
+	public Color getColor() {
+		return this.color;
 	}
 	
 	private void addToPrivLogs(String s) {
@@ -162,20 +200,21 @@ public class CNPlayer implements CNListener {
 	public void notifiedGameMayHaveStarted() {
 		String log_string = "Game started!";
 		if (game.isGameStarted()) { // Confirm that the game is in this state, no matter who sent the message. 
-			this.addToPrivLogs(log_string);
+			this.addToScreen(log_string);
 		}
 	}
 	
 	public void notifiedGameMayHaveEnded() {
 		String log_string = "Game ended!";
 		if (game.isGameEnded()) { // Confirm that the game is in this state, no matter who sent the message. 
-			this.addToPubLogs(log_string);
+			this.addToScreen(log_string);
 		}
 	}
 	
 	public void notifiedMoveMade(ArrayList<ArrayList<CNPiece>> grid, String move, String key) {
 		if (this.isTrustedSender(key)) { // Confirm that the game is the one that sent this message, for integrity. 
-			this.addToPrivLogs(move);
+			this.addToScreen(move);
+			this.drawGrid(midPanel, grid, game.getColCount(), game.getRowCount());
 		}
 	}
 	

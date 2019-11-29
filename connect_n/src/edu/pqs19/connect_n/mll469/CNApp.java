@@ -6,8 +6,8 @@ public class CNApp {
 	public static void main(String[] args) {
 		
 		ArrayList<Integer> dims = new ArrayList<Integer>();
-		dims.add(7); // 7 columns 
-		dims.add(6); // 6 rows
+		dims.add(10); // 7 columns 
+		dims.add(5); // 6 rows
 		
 		CNModel game = new CNModel(dims, 4);
 		

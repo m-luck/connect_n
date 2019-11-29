@@ -188,8 +188,8 @@ public class CNModel {
 	}
 	
 	private void cycleTurns() {
-		CNPlayer popped = turnQueue.pop();
-		turnQueue.push(popped); // Move head to back of line.
+		CNPlayer popped = turnQueue.poll();
+		turnQueue.add(popped); // Move head to back of line.
 	}
 	
 	private void updateState(ArrayList<CNPiece>pillar, int depth, CNListener submitter, String moveDescription) {
@@ -207,7 +207,7 @@ public class CNModel {
 		if (!this.checkIsTurn(submitter) || col > cols - 1) {
 			return false; // Move request is invalid because not the submitter's turn, or target col is out of bounds.
 		}
-		
+
 		String moveDescription = "Move made.";
 		ArrayList<CNPiece> pillar = gameGrid.get(col); // Check the column
 		for (int depth = 0; depth <= pillar.size(); depth++) {
@@ -246,6 +246,7 @@ public class CNModel {
 		
 		CNListener winner = anyWinner();
 		if (winner != null) { // parent function runs after every move so a grid can only have one winning player.
+			System.out.print("Won");
 			endGame();
 			return true;
 		}
@@ -311,7 +312,7 @@ public class CNModel {
 		for (ArrayList<CNPiece> pillar : this.gameGrid) {
 			for (CNPiece piece: pillar) { // Vertical scan
 				CNListener color = piece.getOwner();
-				if (prev == color) {
+				if (prev == color && prev != gaia) {
 					prev = color;
 					max_consec++;
 					if (max_consec == this.nToWin) {
@@ -331,16 +332,15 @@ public class CNModel {
 		int max_consec = 1;
 		CNListener prev = null;
 		
-		for (int col = 0; col < this.cols; col++) {
-			
+		for (int col = 0; col < this.rows; col++) {;
 			int cur_row = 0;
-			int cur_col = 0;
-			LinkedList<CNPiece> queue = new LinkedList<CNPiece>(); // Search the diagonal from top left to bottom right.
-			queue.add(this.gameGrid.get(col).get(0));
+			int cur_col = col;
+			LinkedList<CNPiece> queue = new LinkedList<CNPiece>(); // Search the diagonal from top right to bottom left.
+			queue.add(this.gameGrid.get(cur_col).get(cur_row));
 			while (queue.size() > 0) {
-				CNPiece piece = queue.pop();
+				CNPiece piece = queue.poll();
 				CNListener color = piece.getOwner();
-				if (prev == color) {
+				if (prev == color && prev != gaia) {
 					prev = color;
 					max_consec++;
 					if (max_consec == this.nToWin) {
@@ -351,10 +351,14 @@ public class CNModel {
 					prev = color;
 					max_consec = 1;
 				}
+				System.out.print(Integer.toString(cur_row));
+				System.out.print(", ");
+				System.out.print(Integer.toString(cur_col));
+				System.out.print("\n");
 				if (cur_row + 1 < this.rows && cur_col + 1 < this.cols) {
-					cur_row++; // One right
-					cur_col++; // One down
-					// Added the next diagonal over to the traversal (bottom right)
+					cur_row++; // One down
+					cur_col++; // One right
+					// Added the next diagonal over to the traversal (bottom left)
 					queue.add(this.gameGrid.get(cur_col).get(cur_row));
 				}
 			}			
@@ -366,16 +370,15 @@ public class CNModel {
 		int max_consec = 1;
 		CNListener prev = null;
 		
-		for (int col = this.cols - 1; col >= 0; col--) {
-			
+		for (int col = this.cols - 1; col >= 0; col--) {;
 			int cur_row = 0;
 			int cur_col = col;
 			LinkedList<CNPiece> queue = new LinkedList<CNPiece>(); // Search the diagonal from top right to bottom left.
-			queue.add(this.gameGrid.get(col).get(0));
+			queue.add(this.gameGrid.get(cur_col).get(cur_row));
 			while (queue.size() > 0) {
-				CNPiece piece = queue.pop();
+				CNPiece piece = queue.poll();
 				CNListener color = piece.getOwner();
-				if (prev == color) {
+				if (prev == color && prev != gaia) {
 					prev = color;
 					max_consec++;
 					if (max_consec == this.nToWin) {
@@ -386,7 +389,7 @@ public class CNModel {
 					prev = color;
 					max_consec = 1;
 				}
-				if (cur_row + 1 < this.rows && cur_col + 1 < this.cols) {
+				if (cur_row + 1 < this.rows && cur_col > 0) {
 					cur_row++; // One left
 					cur_col--; // One down
 					// Added the next diagonal over to the traversal (bottom left)
