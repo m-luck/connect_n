@@ -38,7 +38,7 @@ public class CNPlayer implements CNListener {
 	
 	final CNModel game;
 	
-	public CNPlayer(CNModel game) {
+	public CNPlayer(CNModel game)  {
 		Objects.requireNonNull(game);
 
 		this.game = game;
@@ -50,7 +50,13 @@ public class CNPlayer implements CNListener {
 		}
 		
 		this.priv_logs = new ArrayList<String>();
-		int resListen = subscribeToGame(); // Implicitly adds game as trusted entity, starts listening.
+		int resListen = 0;
+		try {
+			resListen = subscribeToGame();
+		} catch (NoSuchAlgorithmException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} // Implicitly adds game as trusted entity, starts listening.
 		int resPlay = this.game.addPlayer(this); // Register as a player.
 		if (resListen == 1) { this.addToScreen("Successfully subscribed to game."); } 
 		if (resPlay == 1) { this.addToScreen("Successfully entered game as player."); }
@@ -118,7 +124,7 @@ public class CNPlayer implements CNListener {
 
 	}
 			
-	private int subscribeToGame() {
+	private int subscribeToGame() throws NoSuchAlgorithmException {
 		this.pub_logs = this.game.getGameHistory();
 		List<String> gameHistory = this.game.getGameHistory();
 		for (String line : gameHistory) {
@@ -242,44 +248,44 @@ public class CNPlayer implements CNListener {
 	
 	// Generated methods
 
-	@Override
-	public int hashCode() {
-		return Objects.hash(arena, button, col_field, color, game, midPanel, num_spin, priv_logs, pub_logs, secret,
-				textArea, voteYes);
-	}
+//	@Override
+//	public int hashCode() {
+//		return Objects.hash(arena, button, col_field, color, game, midPanel, num_spin, priv_logs, pub_logs, secret,
+//				textArea, voteYes);
+//	}
 
-	@Override
-	public boolean equals(Object obj) {
-		if (this == obj) {
-			return true;
-		}
-		if (obj == null) {
-			return false;
-		}
-		if (getClass() != obj.getClass()) {
-			return false;
-		}
-		CNPlayer other = (CNPlayer) obj;
-		return Objects.equals(arena, other.arena) && Objects.equals(button, other.button)
-				&& Objects.equals(col_field, other.col_field) && Objects.equals(color, other.color)
-				&& Objects.equals(game, other.game) && Objects.equals(midPanel, other.midPanel)
-				&& Objects.equals(num_spin, other.num_spin) && Objects.equals(priv_logs, other.priv_logs)
-				&& Objects.equals(pub_logs, other.pub_logs) && Objects.equals(secret, other.secret)
-				&& Objects.equals(textArea, other.textArea) && voteYes == other.voteYes;
-	}
-
-	@Override
-	public String toString() {
-		return "CNPlayer [" + (pub_logs != null ? "pub_logs=" + pub_logs + ", " : "")
-				+ (priv_logs != null ? "priv_logs=" + priv_logs + ", " : "") + "voteYes=" + voteYes + ", "
-				+ (secret != null ? "secret=" + secret + ", " : "") + (color != null ? "color=" + color + ", " : "")
-				+ (textArea != null ? "textArea=" + textArea + ", " : "")
-				+ (arena != null ? "arena=" + arena + ", " : "")
-				+ (midPanel != null ? "midPanel=" + midPanel + ", " : "")
-				+ (button != null ? "button=" + button + ", " : "")
-				+ (num_spin != null ? "num_spin=" + num_spin + ", " : "")
-				+ (col_field != null ? "col_field=" + col_field + ", " : "") + (game != null ? "game=" + game : "")
-				+ "]";
-	}
-	
+//	@Override
+//	public boolean equals(Object obj) {
+//		if (this == obj) {
+//			return true;
+//		}
+//		if (obj == null) {
+//			return false;
+//		}
+//		if (getClass() != obj.getClass()) {
+//			return false;
+//		}
+//		CNPlayer other = (CNPlayer) obj;
+//		return Objects.equals(arena, other.arena) && Objects.equals(button, other.button)
+//				&& Objects.equals(col_field, other.col_field) && Objects.equals(color, other.color)
+//				&& Objects.equals(game, other.game) && Objects.equals(midPanel, other.midPanel)
+//				&& Objects.equals(num_spin, other.num_spin) && Objects.equals(priv_logs, other.priv_logs)
+//				&& Objects.equals(pub_logs, other.pub_logs) && Objects.equals(secret, other.secret)
+//				&& Objects.equals(textArea, other.textArea) && voteYes == other.voteYes;
+//	}
+//
+//	@Override
+//	public String toString() {
+//		return "CNPlayer [" + (pub_logs != null ? "pub_logs=" + pub_logs + ", " : "")
+//				+ (priv_logs != null ? "priv_logs=" + priv_logs + ", " : "") + "voteYes=" + voteYes + ", "
+//				+ (secret != null ? "secret=" + secret + ", " : "") + (color != null ? "color=" + color + ", " : "")
+//				+ (textArea != null ? "textArea=" + textArea + ", " : "")
+//				+ (arena != null ? "arena=" + arena + ", " : "")
+//				+ (midPanel != null ? "midPanel=" + midPanel + ", " : "")
+//				+ (button != null ? "button=" + button + ", " : "")
+//				+ (num_spin != null ? "num_spin=" + num_spin + ", " : "")
+//				+ (col_field != null ? "col_field=" + col_field + ", " : "") + (game != null ? "game=" + game : "")
+//				+ "]";
+//	}
+//	
 }

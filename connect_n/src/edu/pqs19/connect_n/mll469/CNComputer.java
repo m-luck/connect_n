@@ -19,6 +19,12 @@ public class CNComputer extends CNPlayer {
 			e.printStackTrace();
 		}
 		
+		try {
+			game.addListener(this, secret);
+		} catch (NoSuchAlgorithmException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		this.adversarial = false;
 	}
 	
@@ -33,6 +39,11 @@ public class CNComputer extends CNPlayer {
 			e.printStackTrace();
 		}
 		
+		try {
+			game.addListener(this, secret);
+		} catch (NoSuchAlgorithmException e) {
+			e.printStackTrace();
+		}
 	}
 
 	@Override

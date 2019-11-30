@@ -116,10 +116,10 @@ public class CNModel {
 	
 	// Setup 
 	
-	public int addListener(CNListener listener, String listenerSecret) {
+	public int addListener(CNListener listener, String listenerSecret) throws NoSuchAlgorithmException {
 		Objects.requireNonNull(listener);
 		Objects.requireNonNull(listenerSecret);
-		if (!subscribers.contains(listener) && subscribers.size() < subscriberLimit) {
+		if (!keys.contains(SecurityLayer.mix(this.key,  listenerSecret)) && subscribers.size() < subscriberLimit) {
 			try { 
 				String keyToAdd = SecurityLayer.mix(this.key, listenerSecret);
 				keys.add(keyToAdd); // Blend to make key that subscriber will trust.
@@ -227,6 +227,9 @@ public class CNModel {
 		}
 		
 		if (!keys.contains(SecurityLayer.mix(this.key, key))) {
+			System.out.print(keys);
+			System.out.print("\n");
+			System.out.print(SecurityLayer.mix(this.key, key));
 			return false; // Someone is trying to send a move on behalf of someone else.
 		}
 

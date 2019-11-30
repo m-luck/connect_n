@@ -27,8 +27,12 @@ public class TestCNModel {
 
 	@Test
 	public void TestAddMultipleListeners() {
-		game.addListener(player, "testKey");
-		game.addListener(player, "testKey");
+		try {
+			game.addListener(player, "testKey");
+			game.addListener(player, "testKey");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 	
 	@Test
