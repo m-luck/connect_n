@@ -6,8 +6,9 @@ import java.util.List;
 
 public interface CNListener {
 	public void notifiedGameMayHaveStarted();
-	public void notifiedGameMayHaveEnded();
+	public void notifiedGameMayHaveEnded(CNListener winner);
 	public void notifiedMoveMade(ArrayList<ArrayList<CNPiece>> grid, String move, String s);
+	public void notifiedOther(String msg, String key);
 	public Color getColor();
 	public List<String> getPublicLogs();
 }

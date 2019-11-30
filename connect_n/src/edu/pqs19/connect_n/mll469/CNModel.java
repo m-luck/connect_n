@@ -42,6 +42,7 @@ public class CNModel {
 	private LinkedList<CNPlayer> turnQueue; // To check turns
  	private List<String> internal_logger; 
  	private List<String> public_logger; 
+ 	private CNListener winner;
  	
  	
  	// Security 
@@ -156,7 +157,7 @@ public class CNModel {
 		return res;
 	}
 	
-	public boolean startIfAllVoted() {
+	private boolean startIfAllVoted() {
 		
 		// Allows for easy one player games if for some reason a user wanted to! 
 		
@@ -176,10 +177,17 @@ public class CNModel {
 			this.subscribers.get(i).notifiedGameMayHaveStarted(); // Let all subscribers know.
 		}
 		
+		CNPlayer next = turnQueue.peek();
+		for (int i = 0; i < this.subscribers.size(); i++) {
+			if (next == this.subscribers.get(i)) {
+				next.notifiedOther("It's your move.", keys.get(i)); // Let first player turn know.
+			}
+		}
+		
 		return true;
 	}
 	
-	private boolean checkIsTurn(CNListener submitter) {
+	public boolean checkIsTurn(CNListener submitter) {
 		CNListener next = this.turnQueue.peek();
 		if (submitter == next) {
 			return true;
@@ -190,22 +198,36 @@ public class CNModel {
 	private void cycleTurns() {
 		CNPlayer popped = turnQueue.poll();
 		turnQueue.add(popped); // Move head to back of line.
+		CNPlayer next = turnQueue.peek();
+		for (int i = 0; i < this.subscribers.size(); i++) {
+			if (next == this.subscribers.get(i)) {
+				next.notifiedOther("It's your move.", keys.get(i)); // Let next turn know.
+			}
+			else {
+				subscribers.get(i).notifiedOther("Waiting for next turn...", keys.get(i));
+			}
+		}
 	}
 	
 	private void updateState(ArrayList<CNPiece>pillar, int depth, CNListener submitter, String moveDescription) {
 		pillar.set(depth - 1, new CNPiece(submitter)); // Add a piece.
+		this.cycleTurns();
 		for (int i = 0; i < this.subscribers.size(); i++) {
 			this.subscribers.get(i).notifiedMoveMade(this.gameGrid, moveDescription, keys.get(i)); // Let all subscribers know.
+			this.checkIfEndgame();
 		}
-		this.cycleTurns();
 	}
 	
-	public boolean sendMove(int col, CNListener submitter, String key) {
+	public boolean sendMove(int col, CNListener submitter, String key) throws NoSuchAlgorithmException {
 		Objects.requireNonNull(col);
 		Objects.requireNonNull(submitter);
 		Objects.requireNonNull(key);
 		if (!this.checkIsTurn(submitter) || col > cols - 1) {
 			return false; // Move request is invalid because not the submitter's turn, or target col is out of bounds.
+		}
+		
+		if (!keys.contains(SecurityLayer.mix(this.key, key))) {
+			return false; // Someone is trying to send a move on behalf of someone else.
 		}
 
 		String moveDescription = "Move made.";
@@ -230,24 +252,24 @@ public class CNModel {
 		return false; // If none of the conditions were met, this move is invalid.
 	}
 	
-	private void endGame() {
+	private void endGame(CNListener winner) {
+		this.winner = winner;
 		this.gameEnded = true;
 		this.gameStarted = false;
 		for (int i = 0; i < this.subscribers.size(); i++) {
-			this.subscribers.get(i).notifiedGameMayHaveEnded(); // Let all subscribers know.
+			this.subscribers.get(i).notifiedGameMayHaveEnded(winner); // Let all subscribers know.
 		}
 	}
 	
 	public boolean checkIfEndgame() {
 		if (checkIfFull()) {
-			endGame();
+			endGame(null);
 			return true; 
 		}
 		
-		CNListener winner = anyWinner();
+		CNListener winner = anyWinner(this.gameGrid, this.nToWin);
 		if (winner != null) { // parent function runs after every move so a grid can only have one winning player.
-			System.out.print("Won");
-			endGame();
+			endGame(winner);
 			return true;
 		}
 		return false;
@@ -267,12 +289,15 @@ public class CNModel {
 	// Checking for winners
 	//------------------------
 	
-	private CNListener anyWinner() {
+	public CNListener anyWinner(ArrayList<ArrayList<CNPiece>> grid, int nToWin) {
+		Objects.requireNonNull(grid);
 		ArrayList<CNListener> potentialWinners = new ArrayList<CNListener>();
-		potentialWinners.add(anyWinnerHoriz());
-		potentialWinners.add(anyWinnerVert());
-		potentialWinners.add(anyWinnerTopLeftToBottomRight());
-		potentialWinners.add(anyWinnerTopRightToBottomLeft());
+		potentialWinners.add(anyWinnerHoriz(grid, nToWin));
+		potentialWinners.add(anyWinnerVert(grid, nToWin));
+		potentialWinners.add(anyWinnerTopLeftToBottomRight(grid, nToWin));
+		potentialWinners.add(anyWinnerTopRightToBottomLeft(grid, nToWin));
+		potentialWinners.add(anyWinnerBottomLeftToTopRight(grid, nToWin));
+		potentialWinners.add(anyWinnerBottomRightToTopLeft(grid, nToWin));
 		for (CNListener potential : potentialWinners) {
 			if (potential != null) {
 				return potential;
@@ -281,18 +306,18 @@ public class CNModel {
 		return null;
 	}
 	
-	private CNListener anyWinnerHoriz() {
-		int max_consec = 1;
-		CNListener prev = null;
+	private CNListener anyWinnerHoriz(ArrayList<ArrayList<CNPiece>> grid, int nToWin) {
 		
 		for (int row = 0; row < this.rows; row++) { 
+			int max_consec = 1;
+			CNListener prev = null;
 			for (int col = 0; col < this.cols; col++) { // Horizontal scan
-				CNPiece piece = this.gameGrid.get(col).get(row);
+				CNPiece piece = grid.get(col).get(row);
 				CNListener color = piece.getOwner();
 				if (prev == color && prev != gaia) { // Consecutive and not default piece
 					prev = color;
 					max_consec++;
-					if (max_consec == this.nToWin) {
+					if (max_consec == nToWin) {
 						return color; // This satisfies the winning property and this player wins.
 					}
 				}
@@ -306,16 +331,17 @@ public class CNModel {
 		return null;
 	}
 	
-	private CNListener anyWinnerVert() {
-		int max_consec = 1;
-		CNListener prev = null;
-		for (ArrayList<CNPiece> pillar : this.gameGrid) {
+	private CNListener anyWinnerVert(ArrayList<ArrayList<CNPiece>> grid, int nToWin) {
+
+		for (ArrayList<CNPiece> pillar : grid) {
+			int max_consec = 1;
+			CNListener prev = null;
 			for (CNPiece piece: pillar) { // Vertical scan
 				CNListener color = piece.getOwner();
 				if (prev == color && prev != gaia) {
 					prev = color;
 					max_consec++;
-					if (max_consec == this.nToWin) {
+					if (max_consec == nToWin) {
 						return color; // This satisfies the winning property and this player wins.
 					}
 				}
@@ -328,22 +354,22 @@ public class CNModel {
 		return null;
 	}
 	
-	private CNListener anyWinnerTopLeftToBottomRight() {
-		int max_consec = 1;
-		CNListener prev = null;
-		
+	private CNListener anyWinnerTopLeftToBottomRight(ArrayList<ArrayList<CNPiece>> grid, int nToWin) {
+
 		for (int col = 0; col < this.rows; col++) {;
+			int max_consec = 1;
+			CNListener prev = gaia;
 			int cur_row = 0;
 			int cur_col = col;
 			LinkedList<CNPiece> queue = new LinkedList<CNPiece>(); // Search the diagonal from top right to bottom left.
-			queue.add(this.gameGrid.get(cur_col).get(cur_row));
+			queue.add(grid.get(cur_col).get(cur_row));
 			while (queue.size() > 0) {
 				CNPiece piece = queue.poll();
 				CNListener color = piece.getOwner();
 				if (prev == color && prev != gaia) {
 					prev = color;
 					max_consec++;
-					if (max_consec == this.nToWin) {
+					if (max_consec == nToWin) {
 						return color; // This satisfies the winning property and this player wins.
 					}
 				}
@@ -351,37 +377,69 @@ public class CNModel {
 					prev = color;
 					max_consec = 1;
 				}
-				System.out.print(Integer.toString(cur_row));
-				System.out.print(", ");
-				System.out.print(Integer.toString(cur_col));
-				System.out.print("\n");
 				if (cur_row + 1 < this.rows && cur_col + 1 < this.cols) {
 					cur_row++; // One down
 					cur_col++; // One right
 					// Added the next diagonal over to the traversal (bottom left)
-					queue.add(this.gameGrid.get(cur_col).get(cur_row));
+					queue.add(grid.get(cur_col).get(cur_row));
 				}
 			}			
 		}
 		return null;
 	}
 	
-	private CNListener anyWinnerTopRightToBottomLeft() {
-		int max_consec = 1;
-		CNListener prev = null;
-		
-		for (int col = this.cols - 1; col >= 0; col--) {;
-			int cur_row = 0;
+
+	private CNListener anyWinnerBottomLeftToTopRight(ArrayList<ArrayList<CNPiece>> grid, int nToWin) {
+
+		for (int col = 0; col < this.rows; col++) {;
+			int max_consec = 1;
+			CNListener prev = gaia;
+			int cur_row = this.getRowCount() - 1;
 			int cur_col = col;
 			LinkedList<CNPiece> queue = new LinkedList<CNPiece>(); // Search the diagonal from top right to bottom left.
-			queue.add(this.gameGrid.get(cur_col).get(cur_row));
+			queue.add(grid.get(cur_col).get(cur_row));
 			while (queue.size() > 0) {
 				CNPiece piece = queue.poll();
 				CNListener color = piece.getOwner();
 				if (prev == color && prev != gaia) {
 					prev = color;
 					max_consec++;
-					if (max_consec == this.nToWin) {
+					if (max_consec == nToWin) {
+						return color; // This satisfies the winning property and this player wins.
+					}
+				}
+				else {
+					prev = color;
+					max_consec = 1;
+				}
+				if (cur_row - 1 > 0 && cur_col + 1 < this.cols) {
+					cur_row--; // One down
+					cur_col++; // One right
+					// Added the next diagonal over to the traversal (bottom left)
+					queue.add(grid.get(cur_col).get(cur_row));
+				}
+			}			
+		}
+		return null;
+	}
+
+	
+	private CNListener anyWinnerTopRightToBottomLeft(ArrayList<ArrayList<CNPiece>> grid, int nToWin) {
+	
+		for (int col = this.cols - 1; col >= 0; col--) {
+			CNListener prev = gaia;
+			int max_consec = 1;
+			int cur_row = 0;
+			int cur_col = col;
+			LinkedList<CNPiece> queue = new LinkedList<CNPiece>(); // Search the diagonal from top right to bottom left.
+			queue.add(grid.get(cur_col).get(cur_row));
+			while (queue.size() > 0) {
+				CNPiece piece = queue.poll();
+				CNListener color = piece.getOwner();
+				if (prev == color && prev != gaia) {
+					prev = color;
+					max_consec++;
+					if (max_consec == nToWin) {
 						return color; // This satisfies the winning property and this player wins.
 					}
 				}
@@ -390,15 +448,51 @@ public class CNModel {
 					max_consec = 1;
 				}
 				if (cur_row + 1 < this.rows && cur_col > 0) {
-					cur_row++; // One left
-					cur_col--; // One down
+					cur_row++; // One down
+					cur_col--; // One left
 					// Added the next diagonal over to the traversal (bottom left)
-					queue.add(this.gameGrid.get(cur_col).get(cur_row));
+					queue.add(grid.get(cur_col).get(cur_row));
 				}
 			}			
 		}
 		return null;
 	}
+	
+	
+	private CNListener anyWinnerBottomRightToTopLeft(ArrayList<ArrayList<CNPiece>> grid, int nToWin) {
+	
+		for (int col = this.cols - 1; col >= 0; col--) {
+			CNListener prev = gaia;
+			int max_consec = 1;
+			int cur_row = this.getRowCount() - 1;
+			int cur_col = col;
+			LinkedList<CNPiece> queue = new LinkedList<CNPiece>(); // Search the diagonal from top right to bottom left.
+			queue.add(grid.get(cur_col).get(cur_row));
+			while (queue.size() > 0) {
+				CNPiece piece = queue.poll();
+				CNListener color = piece.getOwner();
+				if (prev == color && prev != gaia) {
+					prev = color;
+					max_consec++;
+					if (max_consec == nToWin) {
+						return color; // This satisfies the winning property and this player wins.
+					}
+				}
+				else {
+					prev = color;
+					max_consec = 1;
+				}
+				if (cur_row - 1 > 0 && cur_col > 0) {
+					cur_row--; // One up
+					cur_col--; // One left
+					// Added the next diagonal over to the traversal (bottom left)
+					queue.add(grid.get(cur_col).get(cur_row));
+				}
+			}			
+		}
+		return null;
+	}
+
 	
 	//------------------- 
 	// Some getters
@@ -412,13 +506,30 @@ public class CNModel {
 		return this.gameEnded;
 	}
 	
+	public int getNToWin() {
+		return this.nToWin;
+	}
+	
 	
 	public List<String> getGameHistory() {
-		return this.public_logger;
+		// Returns copy of game history.
+		List<String> res = new ArrayList<String>();
+		res.addAll(this.public_logger);
+		return res;
 	}
 
 	public ArrayList<ArrayList<CNPiece>> getGrid() {
-		return this.gameGrid;
+		// Return copy of grid (prevents write access).
+		 ArrayList<ArrayList<CNPiece>> dest = new ArrayList<ArrayList<CNPiece>>();
+		    for( List<CNPiece> sublist : this.gameGrid) {
+		        List<CNPiece> temp = new ArrayList<CNPiece>();
+		        for(CNPiece val: sublist) {
+		        	CNPiece newPiece = new CNPiece(val.getOwner());	
+		        	temp.add(newPiece);
+		        }
+		        dest.add((ArrayList<CNPiece>) temp);
+		    }
+		    return dest;
 	}
 	
 	public int getColCount() {
@@ -432,4 +543,113 @@ public class CNModel {
 	public String getKey() {
 		return this.key;
 	}
+	
+	// Generated default methods 
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + (allowDiagonalWins ? 1231 : 1237);
+		result = prime * result + (allowLateJoining ? 1231 : 1237);
+		result = prime * result + cols;
+		result = prime * result + ((gaia == null) ? 0 : gaia.hashCode());
+		result = prime * result + (gameEnded ? 1231 : 1237);
+		result = prime * result + ((gameGrid == null) ? 0 : gameGrid.hashCode());
+		result = prime * result + (gameStarted ? 1231 : 1237);
+		result = prime * result + ((internal_logger == null) ? 0 : internal_logger.hashCode());
+		result = prime * result + ((key == null) ? 0 : key.hashCode());
+		result = prime * result + ((keys == null) ? 0 : keys.hashCode());
+		result = prime * result + nToWin;
+		result = prime * result + playerLimit;
+		result = prime * result + ((players == null) ? 0 : players.hashCode());
+		result = prime * result + ((public_logger == null) ? 0 : public_logger.hashCode());
+		result = prime * result + rows;
+		result = prime * result + subscriberLimit;
+		result = prime * result + ((subscribers == null) ? 0 : subscribers.hashCode());
+		result = prime * result + ((turnQueue == null) ? 0 : turnQueue.hashCode());
+		result = prime * result + ((winner == null) ? 0 : winner.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		CNModel other = (CNModel) obj;
+		if (allowDiagonalWins != other.allowDiagonalWins)
+			return false;
+		if (allowLateJoining != other.allowLateJoining)
+			return false;
+		if (cols != other.cols)
+			return false;
+		if (gaia == null) {
+			if (other.gaia != null)
+				return false;
+		} else if (!gaia.equals(other.gaia))
+			return false;
+		if (gameEnded != other.gameEnded)
+			return false;
+		if (gameGrid == null) {
+			if (other.gameGrid != null)
+				return false;
+		} else if (!gameGrid.equals(other.gameGrid))
+			return false;
+		if (gameStarted != other.gameStarted)
+			return false;
+		if (internal_logger == null) {
+			if (other.internal_logger != null)
+				return false;
+		} else if (!internal_logger.equals(other.internal_logger))
+			return false;
+		if (key == null) {
+			if (other.key != null)
+				return false;
+		} else if (!key.equals(other.key))
+			return false;
+		if (keys == null) {
+			if (other.keys != null)
+				return false;
+		} else if (!keys.equals(other.keys))
+			return false;
+		if (nToWin != other.nToWin)
+			return false;
+		if (playerLimit != other.playerLimit)
+			return false;
+		if (players == null) {
+			if (other.players != null)
+				return false;
+		} else if (!players.equals(other.players))
+			return false;
+		if (public_logger == null) {
+			if (other.public_logger != null)
+				return false;
+		} else if (!public_logger.equals(other.public_logger))
+			return false;
+		if (rows != other.rows)
+			return false;
+		if (subscriberLimit != other.subscriberLimit)
+			return false;
+		if (subscribers == null) {
+			if (other.subscribers != null)
+				return false;
+		} else if (!subscribers.equals(other.subscribers))
+			return false;
+		if (turnQueue == null) {
+			if (other.turnQueue != null)
+				return false;
+		} else if (!turnQueue.equals(other.turnQueue))
+			return false;
+		if (winner == null) {
+			if (other.winner != null)
+				return false;
+		} else if (!winner.equals(other.winner))
+			return false;
+		return true;
+	}
+
 }
